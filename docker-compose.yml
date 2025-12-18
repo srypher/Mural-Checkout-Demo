@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: mural_db
+    environment:
+      POSTGRES_DB: mural
+      POSTGRES_USER: mural
+      POSTGRES_PASSWORD: mural
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mural -d mural"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mural_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: mural
+      DB_PASSWORD: mural
+      DB_NAME: mural
+      MOCK_USDC_ADDRESS: "0xDEMOUSDCADDRESSONPOLYGON000000000"
+      MURAL_API_KEY: ${MURAL_API_KEY}
+      MURAL_TRANSFER_KEY: ${MURAL_TRANSFER_KEY}
+      MURAL_ACCOUNT_ID: ${MURAL_ACCOUNT_ID}
+      MURAL_BASE_URL: ${MURAL_BASE_URL}
+    ports:
+      - "8080:8080"
+
+volumes:
+  db-data:
+
+

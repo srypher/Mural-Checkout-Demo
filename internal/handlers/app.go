@@ -75,38 +75,20 @@ func NewApp(orders *models.OrderStore, muralClient *mural.Client, backendBaseURL
 				chosen = &accts[0]
 			}
 
-			muralClient.SetAccountID(chosen.ID)
-			log.Printf("using Mural account %s (%s) for deposits and transactions", chosen.ID, chosen.Name)
-
-			// Derive organization ID via SearchOrganizations instead of relying on
-			// account fields, since Accounts response may not include it.
-			if orgs, err := muralClient.SearchOrganizations(ctx, ""); err != nil {
-				log.Printf("failed to search mural organizations for on-behalf-of: %v", err)
-			} else if len(orgs.Organizations) > 0 {
-				org := orgs.Organizations[0]
-				muralClient.SetOrganizationID(org.ID)
-				log.Printf("using Mural organization %s (%s) for on-behalf-of", org.ID, org.Name)
-			} else {
-				log.Printf("no organizations returned from search; proceeding without on-behalf-of")
-			}
+			demoAccountID := "34b0890c-889b-4b02-8ba7-0011e4af5074"
+			muralClient.SetAccountID(demoAccountID)
+			// For this demo, we hardcode the Organization ID used for on-behalf-of
+			// to match the sandbox org configured in the Mural dashboard.
+			const demoOrgID = "3e8ad179-74ce-4526-a265-80b005e9c3d0"
+			muralClient.SetOrganizationID(demoOrgID)
+			log.Printf("using Mural account %s (%s) and organization %s for deposits, transactions, and payouts",
+				chosen.ID, chosen.Name, demoOrgID)
 
 			if chosen.AccountDetails != nil && chosen.AccountDetails.WalletDetails != nil {
 				app.depositAddress = chosen.AccountDetails.WalletDetails.WalletAddress
 				app.network = chosen.AccountDetails.WalletDetails.Blockchain
 			}
 		}
-	}
-
-	// Fallback to mock address / network if we couldn't resolve from Mural.
-	if app.depositAddress == "" {
-		addr := os.Getenv("MOCK_USDC_ADDRESS")
-		if addr == "" {
-			addr = "0xDEMOUSDCADDRESSONPOLYGON000000000"
-		}
-		app.depositAddress = addr
-	}
-	if app.network == "" {
-		app.network = "POLYGON"
 	}
 
 	// Configure webhook if enabled and backend base URL is known.
@@ -635,6 +617,7 @@ func (a *App) simulatePaymentLifecycle(id uuid.UUID, amountUSDC float64) {
 		if err != nil {
 			log.Printf("mural search transactions error while waiting for payment for order %s: %v", id.String(), err)
 		} else {
+			log.Printf("search transactions for order %s returned count=%d nextId=%v", id.String(), resp.Count, resp.NextID)
 			var matched bool
 			for _, tx := range resp.Transactions {
 				if !tx.ExecutedAt.IsZero() && tx.ExecutedAt.Before(order.CreatedAt) {
@@ -695,7 +678,7 @@ func (a *App) simulatePaymentLifecycle(id uuid.UUID, amountUSDC float64) {
 
 	// build a single stubbed COP payout to a demo Colombian bank recipient.
 	payoutReq := mural.CreatePayoutRequestRequest{
-		SourceAccountID: a.muralAccountID(),
+		SourceAccountID: "34b0890c-889b-4b02-8ba7-0011e4af5074",
 		Memo:            "Order " + id.String(),
 		Payouts: []mural.PayoutInfoInput{
 			{

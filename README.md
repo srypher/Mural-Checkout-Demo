@@ -203,7 +203,8 @@ The **Payins** APIs are not currently driving the payment detection logic; see �
 These are items I would add or refine with more time:
 
 - **Polling against Transactions**
-  - In testing I could not get the Transactions API to return a non‑empty list, and the faucet I tried for on‑chain payments had a **2‑hour cooldown**, which made realistic end‑to‑end testing difficult.
+  - This should probably be polling the Payins API - however I was getting empty lists for both Payins and Transactions search endpoints.
+  - For sandbox debugging I also hardcoded specific **Account** and **Organization** IDs (including a managed Organization ID used in the Mural dashboard) and sent that org as the `on-behalf-of` header for all Mural calls; even then, `SearchTransactionsForAccount` continued to return an empty `transactions` array for an Account that clearly shows transactions in the dashboard UI.
 
 - **More fleshed out support for Webhooks**
   - I stood up the bones for Mural webhooks (create/list, activation, signature verification), but everything deployed is currently using **polling**, not webhook‑driven state transitions.
@@ -219,6 +220,11 @@ These are items I would add or refine with more time:
   - A more complete flow would:
     - Create **Counterparty** records via the Counterparties API.
     - Attach those to payout methods/requests for better reuse and auditability.
+
+- **Create a dedicated “Mural Checkout Demo” Organization automatically**
+  - If `SearchOrganizations` does not return a suitable sandbox org (e.g. named “Mural Checkout Demo”), the app could:
+    - Call the **Create Organization** API to provision a dedicated demo org.
+  - This would reduce manual dashboard setup and make it clearer which org is safe for repeated demo traffic.
 
 - **Prefer Payins API over Transactions for payment detection**
   - The current demo uses the **Transactions API** to infer when a payment has arrived (and even falls back to a timeout).

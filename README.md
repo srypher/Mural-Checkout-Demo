@@ -246,14 +246,4 @@ These are items I would add or refine with more time:
     - Cart badge count should reflect **total items**, not just the number of distinct products.
   - General tightening around edge cases (e.g. retry flows, error surfaces) now that the backend payment lifecycle is in place.
 
----
-
-If you’re reading this to evaluate or extend the integration, the best next step is usually:
-
-1. Run the stack locally.
-2. Watch the backend logs during a couple of checkouts.
-3. Decide whether you want to:
-   - Harden the **Transactions‑based** detection (e.g. better matching rules, use of Payins), or
-   - Move fully to a **Payins‑driven** model and/or webhooks for real‑time state. 
-
 

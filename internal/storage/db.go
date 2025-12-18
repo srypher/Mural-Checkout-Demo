@@ -40,6 +40,36 @@ func NewDB(ctx context.Context) (*DB, error) {
 	return &DB{Pool: pool}, nil
 }
 
+// Migrate ensures the core schema required by the application exists. This is
+// primarily intended for environments like Fly.io where we don't mount the
+// local db/001_init.sql into the database container.
+func (db *DB) Migrate(ctx context.Context) error {
+	const ddl = `
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE IF NOT EXISTS orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_name TEXT NOT NULL,
+    customer_email TEXT,
+    items JSONB NOT NULL,
+    amount_usdc NUMERIC(18,6) NOT NULL,
+    amount_cop NUMERIC(18,2),
+    status TEXT NOT NULL,
+    mural_payout_request_id UUID,
+    mural_payout_status TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+`
+	_, err := db.Pool.Exec(ctx, ddl)
+	if err != nil {
+		return fmt.Errorf("migrate schema: %w", err)
+	}
+	return nil
+}
+
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

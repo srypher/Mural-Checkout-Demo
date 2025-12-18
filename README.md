@@ -203,8 +203,7 @@ The **Payins** APIs are not currently driving the payment detection logic; see �
 These are items I would add or refine with more time:
 
 - **Polling against Transactions**
-  - In testing I could not get the Transactions API to return a non‑empty list, but the faucet I tried for on‑chain payments had a **2‑hour cooldown**, which made realistic end‑to‑end testing difficult.
-  - The current implementation falls back to assuming payment after a 2‑minute timeout to keep the demo flowing.
+  - In testing I could not get the Transactions API to return a non‑empty list, and the faucet I tried for on‑chain payments had a **2‑hour cooldown**, which made realistic end‑to‑end testing difficult.
 
 - **More fleshed out support for Webhooks**
   - I stood up the bones for Mural webhooks (create/list, activation, signature verification), but everything deployed is currently using **polling**, not webhook‑driven state transitions.
@@ -226,6 +225,7 @@ These are items I would add or refine with more time:
   - A more robust implementation should:
     - Use the **Payins API** (or wallet‑driven Payins for token deposits) as the canonical “deposit” signal.
     - Track Payin IDs and statuses (`COMPLETED` / `FAILED`) per order.
+   - Additionally, payout requests that remain in **`PENDING`** status are treated as “complete enough” for UI purposes; the demo maps both `EXECUTED` and `PENDING` payout request statuses to the internal `withdrawn` state to match what we saw in the Mural dashboard (the “three bouncing dots” state).
 
 - **Customer order history**
   - Right now, only the admin view can see orders.

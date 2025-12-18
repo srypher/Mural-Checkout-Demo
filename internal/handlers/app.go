@@ -360,6 +360,7 @@ func (a *App) handleCreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := a.orders.Create(r.Context(), order); err != nil {
+		log.Printf("create order error: %v", err)
 		http.Error(w, "could not create order", http.StatusInternalServerError)
 		return
 	}
@@ -614,25 +615,6 @@ func (a *App) handleMuralWebhook(w http.ResponseWriter, r *http.Request) {
 func (a *App) simulatePaymentLifecycle(id uuid.UUID, amountUSDC float64) {
 	ctx := context.Background()
 
-	// If Mural client is not configured (e.g. local unit tests), fall back to mock behavior.
-	if a.mural == nil {
-		log.Println("mural client nil, falling back to mock payout lifecycle")
-		// wait for "on-chain" confirmation
-		time.Sleep(8 * time.Second)
-		// mark as paid (no COP yet)
-		_ = a.orders.UpdateStatus(ctx, id, models.StatusPaid, 0)
-
-		// convert to COP
-		time.Sleep(5 * time.Second)
-		rate := 4000.0
-		cop := amountUSDC * rate
-		// keep status as paid but update COP estimate
-		_ = a.orders.UpdateStatus(ctx, id, models.StatusPaid, cop)
-		time.Sleep(5 * time.Second)
-		_ = a.orders.UpdateStatus(ctx, id, models.StatusWithdrawn, cop)
-		return
-	}
-
 	// Load the order so we can filter out transactions that occurred before it was created.
 	order, err := a.orders.GetByID(ctx, id)
 	if err != nil {
@@ -642,9 +624,9 @@ func (a *App) simulatePaymentLifecycle(id uuid.UUID, amountUSDC float64) {
 
 	// Poll Transactions for the configured Account and look for an incoming USDC
 	// transaction whose amount matches this order's USDC total and which was
-	// executed after the order was created. This is still a heuristic, but much
-	// more transparent to debug and test than Payins in this sandbox.
-	paymentDeadline := time.Now().Add(2 * time.Minute)
+	// executed after the order was created.  We only
+	// wait 1 minute to keep the demo snappy.
+	paymentDeadline := time.Now().Add(1 * time.Minute)
 	const amountTolerance = 0.000001 // allow minor rounding differences
 	log.Printf("waiting for USDC transaction for order %s amount %.6f created_at=%s", id.String(), amountUSDC, order.CreatedAt.Format(time.RFC3339))
 	paymentMarked := false
@@ -653,11 +635,8 @@ func (a *App) simulatePaymentLifecycle(id uuid.UUID, amountUSDC float64) {
 		if err != nil {
 			log.Printf("mural search transactions error while waiting for payment for order %s: %v", id.String(), err)
 		} else {
-			log.Printf("search transactions for order %s returned count=%d nextId=%v", id.String(), resp.Count, resp.NextID)
 			var matched bool
 			for _, tx := range resp.Transactions {
-				log.Printf("considering tx id=%s direction=%s symbol=%s amount=%.6f executedAt=%s for order=%s",
-					tx.ID, tx.Direction, tx.TokenAmount.TokenSymbol, tx.TokenAmount.TokenAmount, tx.ExecutedAt.Format(time.RFC3339), id.String())
 				if !tx.ExecutedAt.IsZero() && tx.ExecutedAt.Before(order.CreatedAt) {
 					// ignore historical transactions that predate the order
 					continue
@@ -784,13 +763,16 @@ func (a *App) simulatePaymentLifecycle(id uuid.UUID, amountUSDC float64) {
 		}
 	}
 
-	if executed.Status == "EXECUTED" {
+	// For demo purposes, treat both EXECUTED and PENDING payout request statuses
+	// as "good enough" to show a completed withdrawal in the UI.
+	if executed.Status == "EXECUTED" || executed.Status == "PENDING" {
 		// we already set a COP estimate earlier; keep that as the withdrawn amount.
 		order, err := a.orders.GetByID(ctx, id)
 		if err != nil {
 			log.Printf("failed to reload order %s after payout: %v", id.String(), err)
 			return
 		}
+		log.Printf("marking order %s withdrawn with amountCop=%.2f after payout status=%s", id.String(), order.AmountCOP, executed.Status)
 		_ = a.orders.UpdateStatus(ctx, id, models.StatusWithdrawn, order.AmountCOP)
 	}
 }

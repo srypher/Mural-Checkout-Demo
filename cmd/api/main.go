@@ -28,6 +28,12 @@ func main() {
 	}
 	defer db.Pool.Close()
 
+	// Ensure schema exists (especially in environments like Fly.io where we
+	// don't have docker-entrypoint-initdb.d migrations).
+	if err := db.Migrate(ctx); err != nil {
+		log.Fatalf("db migrate: %v", err)
+	}
+
 	// For this demo image, start from a clean slate on each container start so
 	// repeated $1 test payments are easier to reason about.
 	if strings.ToLower(os.Getenv("RESET_ORDERS_ON_START")) == "true" {
